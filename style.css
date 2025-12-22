@@ -1,0 +1,140 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.app-container {
+  max-width: 1100px;
+  margin: 20px auto;
+  padding: 16px;
+}
+
+header {
+  margin-bottom: 24px;
+}
+
+header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 6px;
+}
+
+header p {
+  color: #9ca3af;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.status-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.card h2 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: #9ca3af;
+}
+
+.distance-value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.status-unknown {
+  background: #4b5563;
+  color: #e5e7eb;
+}
+.status-focus {
+  background: #16a34a;
+  color: #ecfdf5;
+}
+.status-warning {
+  background: #f97316;
+  color: #fff7ed;
+}
+.status-away {
+  background: #dc2626;
+  color: #fef2f2;
+}
+
+.chart-panel {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.chart-panel h2 {
+  margin-bottom: 10px;
+  color: #9ca3af;
+}
+
+.debug-panel {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+#simulateBtn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+#simulateBtn:hover {
+  opacity: 0.9;
+}
+
+#debugLog {
+  background: #020617;
+  padding: 10px;
+  border-radius: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.focus-score-panel {
+  display: flex;
+  justify-content: center;
+}
+
+.focus-score-card {
+  text-align: center;
+}
+
+.focus-score-text {
+  font-size: 1.2rem;
+  margin-top: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>FocusSense - Live Desk Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Basit stil dosyamız -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- MQTT ve Chart.js kütüphaneleri (CDN üzerinden) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <h1>FocusSense - Canlı Masa Takibi</h1>
+      <p>ESP32 + HC-SR04 sensöründen gelen veriyi gerçek zamanlı izleme</p>
+    </header>
+
+    <main>
+      <section class="status-panel">
+        <div class="card">
+          <h2>Anlık Mesafe</h2>
+          <p class="distance-value"><span id="distanceValue">-</span> cm</p>
+        </div>
+
+        <div class="card">
+          <h2>Durum</h2>
+          <p id="statusBadge" class="status-badge status-unknown">
+            Bekleniyor...
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Son Güncelleme</h2>
+          <p id="lastUpdate">-</p>
+        </div>
+      </section>
+      
+<!-- Fokus Skoru Paneli -->
+      <section class="focus-score-panel">
+  <div class="card focus-score-card">
+    <h2>Focus Score</h2>
+    <canvas id="focusScoreChart" width="180" height="180"></canvas>
+    <p id="focusScoreText" class="focus-score-text">Hesaplanıyor...</p>
+  </div>
+</section>
+
+
+      <section class="chart-panel">
+        <h2>Son Ölçümler</h2>
+        <canvas id="distanceChart" height="120"></canvas>
+      </section>
+
+      <section class="debug-panel">
+        <h2>Test İçin Simülasyon</h2>
+        <button id="simulateBtn">Rastgele Mesafe Üret (ESP32 yokken deneme)</button>
+        <pre id="debugLog"></pre>
+      </section>
+    </main>
+  </div>
+
+  <!-- Uygulama scriptimiz en sonda, defer istersen kullanabilirsin -->
+  <script src="app.js"></script>
+</body>
+</html>
