@@ -15,7 +15,7 @@
 <body>
   <div class="app-container">
     <header>
-      <h1>FocusSense - Canlı Masa Takibi</h1>
+      <h1>FocuSense - Canlı Masa Takibi</h1>
       <p>ESP32 + HC-SR04 sensöründen gelen veriyi gerçek zamanlı izleme</p>
     </header>
 
@@ -38,16 +38,47 @@
           <p id="lastUpdate">-</p>
         </div>
       </section>
-      
-<!-- Fokus Skoru Paneli -->
-      <section class="focus-score-panel">
-  <div class="card focus-score-card">
-    <h2>Focus Score</h2>
-    <canvas id="focusScoreChart" width="180" height="180"></canvas>
-    <p id="focusScoreText" class="focus-score-text">Hesaplanıyor...</p>
-  </div>
-</section>
 
+      <!-- Telefon Kullanım Paneli - YENİ -->
+      <section class="status-panel">
+        <div class="card">
+          <h2>📱 Telefon Durumu</h2>
+          <p id="phoneStatus" class="distance-value" style="font-size: 1.5rem;">
+            <span id="phoneStatusText">Bekleniyor...</span>
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>📊 Telefon Alma Sayısı</h2>
+          <p class="distance-value" style="font-size: 1.8rem;">
+            <span id="phonePickupCount">0</span>
+            <span style="font-size: 0.5em; color: #9ca3af;">kez</span>
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>⏱️ Telefon Kullanım Süresi</h2>
+          <p class="distance-value" style="font-size: 1.8rem;">
+            <span id="phoneUsageTime">0:00</span>
+            <span style="font-size: 0.5em; color: #9ca3af;">dk</span>
+          </p>
+        </div>
+      </section>
+
+      <!-- Fokus Skoru Paneli -->
+      <section class="focus-score-panel">
+        <div class="card focus-score-card">
+          <h2>Focus Score</h2>
+          <canvas id="focusScoreChart" width="180" height="180"></canvas>
+          <p id="focusScoreText" class="focus-score-text">Hesaplanıyor...</p>
+        </div>
+      </section>
+
+      <!-- Telefon Kullanım Grafiği - YENİ -->
+      <section class="chart-panel">
+        <h2>📱 Telefon Kullanım Geçmişi</h2>
+        <canvas id="phoneUsageChart" height="120"></canvas>
+      </section>
 
       <section class="chart-panel">
         <h2>Son Ölçümler</h2>
@@ -62,7 +93,7 @@
     </main>
   </div>
 
-  <!-- Uygulama scriptimiz en sonda, defer istersen kullanabilirsin -->
-  <script src="app.js"></script>
+  <!-- Artık tüm JS mantığı dışarıda: -->
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

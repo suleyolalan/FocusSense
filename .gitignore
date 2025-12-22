@@ -1,0 +1,37 @@
+# =========================
+# Config dosyaları (GİZLİ)
+# =========================
+js/mqttConfig.js
+js/firebaseConfig.js
+
+# Alternatif isimler (ileride kullanırsan)
+js/*Config.js
+.env
+.env.*
+
+# =========================
+# Node / build kalıntıları
+# =========================
+node_modules/
+dist/
+build/
+
+# =========================
+# Log / geçici dosyalar
+# =========================
+*.log
+debug.log
+
+# =========================
+# OS / IDE dosyaları
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Firebase local tools
+# =========================
+.firebase/
+firebase-debug.log
