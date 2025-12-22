@@ -7,8 +7,21 @@ import { MQTT_CONFIG } from "./mqttConfig.js";
 
 import {
   ref,
+  push,
   onValue
 } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+// =====================
+// EVENT LOG FONKSİYONU
+// =====================
+function logEvent(type, payload = {}) {
+  const eventsRef = ref(database, "events/desk1");
+  return push(eventsRef, {
+    ts: Date.now(),
+    type,
+    ...payload
+  });
+}
 
 // =====================================================
 // State (Focus Score + Phone Tracking)
@@ -18,7 +31,11 @@ let focusTime = 0;
 let distractionCount = 0;
 let lastDistanceState = null; // 'focus', 'warning', 'away'
 
-// Phone tracking
+// Away tracking (distance-based)
+let isAway = false;
+let awayStartTs = null;
+
+// Phone tracking (reed-based)
 let phonePickupCount = 0;
 let phoneUsageSeconds = 0;
 let isPhoneInHand = false;
@@ -53,8 +70,9 @@ function log(msg) {
 }
 
 function getStatus(distance) {
+  if (distance < 20) return { text: "Sağlık için tehlikeli", class: "status-warning" };
   if (distance < 60) return { text: "Odakta", class: "status-focus" };
-  if (distance < 120) return { text: "Kararsız", class: "status-warning" };
+  if (distance < 100) return { text: "Kararsız", class: "status-warning" };
   return { text: "Masadan Uzak", class: "status-away" };
 }
 
@@ -62,6 +80,11 @@ function formatPhoneUsageTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+// Basit geçersiz mesafe filtresi (sensör -1 vb. gönderirse log/score bozulmasın)
+function isValidDistance(distance) {
+  return Number.isFinite(distance) && distance >= 0 && distance <= 400; // HC-SR04 tipik aralık
 }
 
 // =====================================================
@@ -208,9 +231,16 @@ function addPhoneEventToChart(event) {
 // Core UI Update Functions
 // =====================================================
 function handleNewDistance(distance) {
+  if (!isValidDistance(distance)) {
+    // İstersen burada log basabilirsin:
+    // log("Geçersiz mesafe verisi: " + distance);
+    return;
+  }
+
   if (distanceSpan) distanceSpan.textContent = distance.toFixed(1);
 
   const statusInfo = getStatus(distance);
+
   if (statusBadge) {
     statusBadge.textContent = statusInfo.text;
     statusBadge.classList.remove(
@@ -226,18 +256,46 @@ function handleNewDistance(distance) {
 
   addDistanceToChart(distance);
 
-  // focus score state
-  lastDistanceState =
+  // 1) Yeni state'i hesapla
+  const newState =
     statusInfo.class === "status-focus"
       ? "focus"
       : statusInfo.class === "status-warning"
         ? "warning"
         : "away";
+
+  // 2) State değiştiyse event logla
+  if (newState !== lastDistanceState) {
+    // away başladı
+    if (newState === "away" && !isAway) {
+      isAway = true;
+      awayStartTs = Date.now();
+      logEvent("AWAY_START", { distance_cm: distance });
+    }
+
+    // away bitti
+    if (lastDistanceState === "away" && isAway && newState !== "away") {
+      isAway = false;
+
+      const duration_s = awayStartTs
+        ? Math.floor((Date.now() - awayStartTs) / 1000)
+        : 0;
+
+      awayStartTs = null;
+
+      // gürültü filtresi: 5 sn altını sayma
+      if (duration_s >= 5) {
+        logEvent("AWAY_END", { duration_s });
+      }
+    }
+
+    // 3) Son state'i güncelle
+    lastDistanceState = newState;
+  }
 }
 
 function updatePhoneStatus(reedValue) {
   // Varsayım: 1 = telefon tutucuda, 0 = telefon elde
-  // Not: Donanım/bağlantıya göre ters olabilir. Gerekirse burada invert edilir.
 
   if (lastReedState === null) {
     lastReedState = reedValue;
@@ -245,10 +303,16 @@ function updatePhoneStatus(reedValue) {
     if (reedValue === 0) {
       isPhoneInHand = true;
       phonePickupStartTime = Date.now();
+
       if (phoneStatusText) {
         phoneStatusText.textContent = "📵 Elde";
         phoneStatusText.style.color = "#ef4444";
       }
+
+      // İlk veriyle başladıysa event spam olmasın diye burada event atmayabilirsin.
+      // Eğer ilk okuma anında eldeyse ve bunu da kaydetmek istersen aç:
+      // logEvent("PHONE_PICKUP");
+
       log("📱 Telefon elde - sayım başladı");
     } else {
       isPhoneInHand = false;
@@ -278,6 +342,9 @@ function updatePhoneStatus(reedValue) {
 
       log(`📱 Telefon alındı! Toplam: ${phonePickupCount} kez`);
       addPhoneEventToChart("Alındı");
+
+      // ✅ EVENT LOG
+      logEvent("PHONE_PICKUP");
     } else if (reedValue === 1 && lastReedState === 0) {
       // put back
       isPhoneInHand = false;
@@ -293,6 +360,11 @@ function updatePhoneStatus(reedValue) {
 
         log(`✅ Telefon bırakıldı - ${usageDuration} saniye kullanıldı`);
         addPhoneEventToChart("Bırakıldı");
+
+        // ✅ EVENT LOG (gürültü filtresi: 3 sn altını sayma)
+        if (usageDuration >= 3) {
+          logEvent("PHONE_PUTBACK", { duration_s: usageDuration });
+        }
       }
 
       if (phoneStatusText) {
