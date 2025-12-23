@@ -1,82 +1,148 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8" />
-  <title>FocuSense - Live Desk Monitor</title>
+  <title>FocusSense</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Basit stil dosyamız -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- MQTT ve Chart.js kütüphaneleri (CDN üzerinden) -->
+  <!-- MQTT + Chart.js -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
   <div class="app-container">
-    <header>
-      <h1>FocuSense - Canlı Masa Takibi</h1>
-      <p>ESP32 + HC-SR04 sensöründen gelen veriyi gerçek zamanlı izleme</p>
-    </header>
 
+    <!-- Top bar -->
+    <div class="topbar">
+      <button id="menuBtn" class="menu-btn" aria-label="Menüyü aç/kapat" type="button">☰</button>
+
+      <div class="topbar-title">
+        <h1>FocusSense</h1>
+        <p>ESP32 + HC-SR04 sensöründen gelen veriyi gerçek zamanlı izleme</p>
+      </div>
+    </div>
+
+    <!-- Overlay -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Side Menu -->
+    <aside id="sideMenu" class="side-menu" aria-hidden="true">
+      <div class="side-header">
+        <div class="side-user">
+          <div class="side-user-title">Kullanıcı</div>
+          <div id="userName" class="side-user-name">Misafir</div>
+        </div>
+
+        <button id="closeMenuBtn" class="close-btn" aria-label="Menüyü kapat" type="button">✕</button>
+      </div>
+
+      <!-- ÖNEMLİ: Tüm kartlar side-content içinde olmalı -->
+      <div class="side-content">
+
+        <!-- Session -->
+        <div class="side-card">
+          <h2 class="side-card-title">Oturum</h2>
+
+          <label class="side-label">Oturum Adı</label>
+          <input id="sessionName" class="side-input" placeholder="Focus 1" />
+
+          <div class="side-actions">
+            <button id="startSessionBtn" class="side-primary" type="button">Başlat</button>
+            <button id="stopSessionBtn" class="side-secondary" type="button">Durdur</button>
+          </div>
+
+          <p class="side-muted">
+            Aktif Oturum: <span id="activeSessionLabel">Yok</span>
+          </p>
+        </div>
+
+        <!-- Reports -->
+        <div class="side-card">
+          <h2 class="side-card-title">Raporlar</h2>
+
+          <div class="report-block">
+            <div class="report-subtitle">Haftalık</div>
+            <div id="weeklyReportBox" class="report-box-text">Yükleniyor...</div>
+          </div>
+
+          <div class="report-block" style="margin-top:12px;">
+            <div class="report-subtitle">Aylık</div>
+            <div id="monthlyReportBox" class="report-box-text">Yükleniyor...</div>
+          </div>
+
+          <p class="side-muted" style="margin-top:10px;">
+            Toplam süre, odak, uzak kalma ve telefon kullanım özetini gösterir.
+          </p>
+        </div>
+
+
+      </div>
+
+      <div class="side-footer">
+        <button id="logoutBtn" class="side-logout" type="button">Çıkış Yap</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
     <main>
-      <section class="status-panel">
-        <div class="card">
-          <h2>Anlık Mesafe</h2>
-          <p class="distance-value"><span id="distanceValue">-</span> cm</p>
+      <section class="overview-grid">
+        <div class="overview-col">
+          <div class="card">
+            <h2>Anlık Mesafe</h2>
+            <p class="distance-value"><span id="distanceValue">-</span> cm</p>
+          </div>
+
+          <div class="card">
+            <h2>Durum</h2>
+            <p id="statusBadge" class="status-badge status-unknown">Bekleniyor...</p>
+          </div>
+
+          <div class="card">
+            <h2>Son Güncelleme</h2>
+            <p id="lastUpdate">-</p>
+          </div>
         </div>
 
-        <div class="card">
-          <h2>Durum</h2>
-          <p id="statusBadge" class="status-badge status-unknown">
-            Bekleniyor...
-          </p>
+        <div class="overview-col">
+          <div class="card">
+            <h2>Telefon Durumu</h2>
+            <p class="distance-value" style="font-size: 1.5rem;">
+              <span id="phoneStatusText">Bekleniyor...</span>
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Telefon Alma Sayısı</h2>
+            <p class="distance-value" style="font-size: 1.8rem;">
+              <span id="phonePickupCount">0</span>
+              <span style="font-size: 0.5em; color: #cecece;">kez</span>
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Telefon Kullanım Süresi</h2>
+            <p class="distance-value" style="font-size: 1.8rem;">
+              <span id="phoneUsageTime">0:00</span>
+              <span style="font-size: 0.5em; color: #d7d7d7;">dk</span>
+            </p>
+          </div>
         </div>
 
-        <div class="card">
-          <h2>Son Güncelleme</h2>
-          <p id="lastUpdate">-</p>
-        </div>
-      </section>
-
-      <!-- Telefon Kullanım Paneli - YENİ -->
-      <section class="status-panel">
-        <div class="card">
-          <h2>📱 Telefon Durumu</h2>
-          <p id="phoneStatus" class="distance-value" style="font-size: 1.5rem;">
-            <span id="phoneStatusText">Bekleniyor...</span>
-          </p>
-        </div>
-
-        <div class="card">
-          <h2>📊 Telefon Alma Sayısı</h2>
-          <p class="distance-value" style="font-size: 1.8rem;">
-            <span id="phonePickupCount">0</span>
-            <span style="font-size: 0.5em; color: #9ca3af;">kez</span>
-          </p>
-        </div>
-
-        <div class="card">
-          <h2>⏱️ Telefon Kullanım Süresi</h2>
-          <p class="distance-value" style="font-size: 1.8rem;">
-            <span id="phoneUsageTime">0:00</span>
-            <span style="font-size: 0.5em; color: #9ca3af;">dk</span>
-          </p>
-        </div>
-      </section>
-
-      <!-- Fokus Skoru Paneli -->
-      <section class="focus-score-panel">
-        <div class="card focus-score-card">
-          <h2>Focus Score</h2>
-          <canvas id="focusScoreChart" width="180" height="180"></canvas>
-          <p id="focusScoreText" class="focus-score-text">Hesaplanıyor...</p>
+        <div class="overview-col focus-col">
+          <div class="card focus-mini-card">
+            <h2>Focus Score</h2>
+            <canvas id="focusScoreChart"></canvas>
+            <p id="focusScoreText" class="focus-score-text">Hesaplanıyor...</p>
+          </div>
         </div>
       </section>
 
-      <!-- Telefon Kullanım Grafiği - YENİ -->
       <section class="chart-panel">
-        <h2>📱 Telefon Kullanım Geçmişi</h2>
+        <h2>Telefon Kullanım Geçmişi</h2>
         <canvas id="phoneUsageChart" height="120"></canvas>
       </section>
 
@@ -87,13 +153,14 @@
 
       <section class="debug-panel">
         <h2>Test İçin Simülasyon</h2>
-        <button id="simulateBtn">Rastgele Mesafe Üret (ESP32 yokken deneme)</button>
+        <button id="simulateBtn" type="button">Rastgele Mesafe Üret (ESP32 yokken deneme)</button>
         <pre id="debugLog"></pre>
       </section>
     </main>
   </div>
-
-  <!-- Artık tüm JS mantığı dışarıda: -->
+  
+  <script type="module" src="js/auth-guard.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
+
 </html>
