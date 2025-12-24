@@ -526,7 +526,7 @@ async function loadSessionIntoMemory(sessionId) {
   updateFocusScoreUI();
   updateSessionUI();
   
-  log(`📂 Session yüklendi: ${activeSessionName} (${sessionId})`);
+  log(`Session yüklendi: ${activeSessionName} (${sessionId})`);
   return true;
 }
 
@@ -535,13 +535,13 @@ async function loadSessionIntoMemory(sessionId) {
 // =====================================================
 async function startSessionFlow() {
   if (sessionRunning) {
-    log("⚠️ Session zaten çalışıyor!");
+    log("Session zaten çalışıyor!");
     return;
   }
 
   const name = (sessionNameInput?.value || "").trim() || "";
 
-  log(`🔄 Session başlatılıyor: "${name}"...`);
+  log(`Session başlatılıyor: "${name}"...`);
 
   // If same name exists => resume
   const existingId = await findSessionIdByName(name);
@@ -555,7 +555,7 @@ async function startSessionFlow() {
     });
 
     logEvent("SESSION_RESUME");
-    log(`▶️ Mevcut session devam ettiriliyor: ${activeSessionName}`);
+    log(`Mevcut session devam ettiriliyor: ${activeSessionName}`);
   } else {
     // Create new
     const newRef = push(sessionsRootRef());
@@ -596,7 +596,7 @@ async function startSessionFlow() {
     if (phoneUsageTimeSpan) phoneUsageTimeSpan.textContent = "0:00";
     updateFocusScoreUI();
     
-    log(`✅ Yeni session oluşturuldu: ${activeSessionName}`);
+    log(`Yeni session oluşturuldu: ${activeSessionName}`);
   }
 
   sessionRunning = true;
@@ -608,17 +608,17 @@ async function startSessionFlow() {
   startMainTick();
   updateSessionUI();
 
-  log(`✅ Session çalışıyor: ${activeSessionName} (${activeSessionId})`);
+  log(`Session çalışıyor: ${activeSessionName} (${activeSessionId})`);
 }
 
 async function stopSessionFlow() {
   if (!sessionRunning) {
-    log("⚠️ Session zaten durmuş!");
+    log("Session zaten durmuş!");
     return;
   }
   if (!activeSessionId) return;
 
-  log(`⏸️ Session durduruluyor: ${activeSessionName}...`);
+  log(`Session durduruluyor: ${activeSessionName}...`);
 
   // phone in hand → finalize current usage chunk
   if (isPhoneInHand && phonePickupStartTime) {
@@ -920,14 +920,14 @@ function setupSessionControls() {
 
   startSessionBtn.addEventListener("click", () => {
     startSessionFlow().catch((e) => {
-      log("❌ Start error: " + e.message);
+      log(" Start error: " + e.message);
       console.error(e);
     });
   });
 
   stopSessionBtn.addEventListener("click", () => {
     stopSessionFlow().catch((e) => {
-      log("❌ Stop error: " + e.message);
+      log(" Stop error: " + e.message);
       console.error(e);
     });
   });
@@ -941,7 +941,7 @@ function setupSessionControls() {
 // =====================================================
 function showSessionWarning() {
   if (!sessionRunning) {
-    log("⚠️ UYARI: Oturum başlatılmadı! Lütfen menüden oturum başlatın.");
+    log("UYARI: Oturum başlatılmadı! Lütfen menüden oturum başlatın.");
     
     // EKLEME: Görsel uyarı
     if (statusBadge) {
