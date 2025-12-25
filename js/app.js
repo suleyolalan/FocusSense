@@ -1,7 +1,3 @@
-// js/app.js
-// =====================================================
-// Imports
-// =====================================================
 import { database } from "./firebaseConfig.js";
 import { MQTT_CONFIG } from "./mqttConfig.js";
 
@@ -18,18 +14,40 @@ import {
   limitToLast
 } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
 
-// =====================================================
-// Small helper: get element or warn
-// =====================================================
+// Firebase Refs
+
+function sessionsRootRef() {
+  return ref(database, `sessions/${ownerId}`);
+}
+function sessionRef(sessionId) {
+  return ref(database, `sessions/${ownerId}/${sessionId}`);
+}
+function eventsRootRef(sessionId) {
+  return ref(database, `events/${ownerId}/${sessionId}`);
+}
+
+
+// Event Log (sadece session varsa)
+
+function logEvent(type, payload = {}) {
+  if (!activeSessionId) return;
+  return push(eventsRootRef(activeSessionId), {
+    ts: Date.now(),
+    type,
+    ...payload
+  });
+}
+
+//htmlden idye göre element getir
+
 function getElOrWarn(id) {
   const el = document.getElementById(id);
   if (!el) console.warn(`[FocusSense] Missing element id="${id}"`);
   return el
 }
 
-// =====================================================
 // DOM Elements
-// =====================================================
+
 // Topbar + side menu
 const menuBtn = getElOrWarn("menuBtn");
 const closeMenuBtn = getElOrWarn("closeMenuBtn");
@@ -62,9 +80,7 @@ const focusScoreCanvas = getElOrWarn("focusScoreChart");
 const distanceCanvas = getElOrWarn("distanceChart");
 const phoneCanvas = getElOrWarn("phoneUsageChart");
 
-// =====================================================
 // REPORTS (Weekly / Monthly) 
-// =====================================================
 
 const weeklyReportBox = getElOrWarn("weeklyReportBox");
 const monthlyReportBox = getElOrWarn("monthlyReportBox");
@@ -96,7 +112,8 @@ function summarizeSessions(sessionsObj, filterFn) {
     away_s: 0,
     away_count: 0,
     phone_pickups: 0,
-    phone_use_s: 0
+    phone_use_s: 0,
+    activity_s: 0
   };
 
   if (!sessionsObj) return summary;
@@ -113,6 +130,8 @@ function summarizeSessions(sessionsObj, filterFn) {
     summary.away_count += Number(stats.away_count || 0);
     summary.phone_pickups += Number(stats.phone_pickups || 0);
     summary.phone_use_s += Number(stats.phone_use_s || 0);
+    summary.activity_s += Number(stats.activity_s || 0);
+
   }
 
   return summary;
@@ -157,11 +176,8 @@ async function refreshReports() {
   }
 }
 
-
-
-// =====================================================
 // Debug log helper
-// =====================================================
+
 function log(msg) {
   const now = new Date().toLocaleTimeString();
   const line = `[${now}] ${msg}`;
@@ -173,9 +189,10 @@ function log(msg) {
   }
 }
 
-// =====================================================
-// Owner / Device (Login yokken deviceId)
-// =====================================================
+
+// Owner / Device 
+// Login yokken her tarayıcıya özel bir kimlik üretme
+
 function getOwnerId() {
   let id = localStorage.getItem("fs_ownerId");
   if (!id) {
@@ -186,21 +203,17 @@ function getOwnerId() {
 }
 const ownerId = getOwnerId();
 
-// =====================================================
 // Session State (DB ile senkron)
-// =====================================================
+
 let sessionRunning = false;
 let activeSessionId = null;
 let activeSessionName = null;
-
 // Session counters (DB'den yüklenir, devam eder)
 let sessionTotalTime = 0;
 let sessionFocusTime = 0;
 let sessionDistractionCount = 0;
-
 let sessionAwaySeconds = 0;
 let sessionAwayCount = 0;
-
 let sessionPhonePickupCount = 0;
 let sessionPhoneUsageSeconds = 0;
 
@@ -218,34 +231,14 @@ let tickIntervalId = null;
 let lastPersistMs = 0;
 const PERSIST_EVERY_MS = 5000;
 
-// =====================================================
-// Firebase Refs
-// =====================================================
-function sessionsRootRef() {
-  return ref(database, `sessions/${ownerId}`);
-}
-function sessionRef(sessionId) {
-  return ref(database, `sessions/${ownerId}/${sessionId}`);
-}
-function eventsRootRef(sessionId) {
-  return ref(database, `events/${ownerId}/${sessionId}`);
-}
+let sessionActivitySeconds = 0; // oturum içi aktif saniye
+let lastMouseMoveTs = null;     // son mouse hareket zamanı (ms)
+// son kaç saniyede mouse hareketi olursa "aktif" sayalım?
+const ACTIVITY_WINDOW_MS = 10000; // 10 saniye
 
-// =====================================================
-// Event Log (sadece session varsa)
-// =====================================================
-function logEvent(type, payload = {}) {
-  if (!activeSessionId) return;
-  return push(eventsRootRef(activeSessionId), {
-    ts: Date.now(),
-    type,
-    ...payload
-  });
-}
 
-// =====================================================
 // UI helpers
-// =====================================================
+
 function updateSessionUI() {
   if (activeSessionLabel) {
     activeSessionLabel.textContent = activeSessionName ? activeSessionName : "Yok";
@@ -273,9 +266,8 @@ function getStatus(distance) {
   return { text: "Masadan Uzak", class: "status-away" };
 }
 
-// =====================================================
 // Charts
-// =====================================================
+
 let distanceChart = null;
 let phoneUsageChart = null;
 let focusScoreChart = null;
@@ -352,7 +344,7 @@ function initCharts() {
     });
   }
 
-  // Focus score - DÜZELTME: backgroundColor eklendi
+  // Focus score 
   if (focusScoreCanvas) {
     const ctx = focusScoreCanvas.getContext("2d");
     focusScoreChart = new Chart(ctx, {
@@ -405,9 +397,8 @@ function addPhoneEventToChart(value01) {
   phoneUsageChart.update();
 }
 
-// =====================================================
 // Focus Score
-// =====================================================
+
 function calculateFocusScore() {
   if (sessionTotalTime <= 0) return 0;
 
@@ -417,13 +408,15 @@ function calculateFocusScore() {
   const phoneUsageRatio = sessionPhoneUsageSeconds / sessionTotalTime;
   const phoneUsagePenalty = Math.max(0, 1 - phoneUsageRatio * 2);
 
-  const breakQuality = 0.8;
+  // Sanal veri: aktiflik oranı (mouse hareketine göre)
+  const activityRatio = sessionActivitySeconds / sessionTotalTime;
 
   const score =
-    focusRatio * 50 +
-    distractionPenalty * 15 +
-    phoneUsagePenalty * 25 +
-    breakQuality * 10;
+    focusRatio * 50 + // odak süresi
+    distractionPenalty * 15 + // dikkat dağınıklığı 
+    phoneUsagePenalty * 25 + // telefon kullanımı
+    activityRatio * 10; // mouse bazlı aktiflik
+
 
   return Math.round(score);
 }
@@ -434,8 +427,8 @@ function updateFocusScoreUI() {
 
   if (focusScoreChart) {
     focusScoreChart.data.datasets[0].data = [score, remaining];
-    
-    // DÜZELTME: Renk güncellemesi eklendi
+
+   
     if (score > 80) {
       focusScoreChart.data.datasets[0].backgroundColor[0] = "#22c55e";
     } else if (score > 65) {
@@ -443,7 +436,7 @@ function updateFocusScoreUI() {
     } else {
       focusScoreChart.data.datasets[0].backgroundColor[0] = "#ef4444";
     }
-    
+
     focusScoreChart.update();
   }
 
@@ -455,9 +448,9 @@ function updateFocusScoreUI() {
   }
 }
 
-// =====================================================
 // Persist stats to DB (every 5s, and on stop)
-// =====================================================
+//Session istatistiklerini Firebase’e yaz
+
 async function persistSessionStats(force = false) {
   if (!activeSessionId) return;
 
@@ -474,14 +467,17 @@ async function persistSessionStats(force = false) {
       away_s: sessionAwaySeconds,
       away_count: sessionAwayCount,
       phone_pickups: sessionPhonePickupCount,
-      phone_use_s: sessionPhoneUsageSeconds
+      phone_use_s: sessionPhoneUsageSeconds,
+      activity_s: sessionActivitySeconds
+
     }
   });
 }
 
-// =====================================================
+
 // Session DB helpers (find/load)
-// =====================================================
+//Aynı isimli session varsa bulur (devam etmek için)
+
 async function findSessionIdByName(name) {
   const q = query(
     sessionsRootRef(),
@@ -516,6 +512,8 @@ async function loadSessionIntoMemory(sessionId) {
 
   sessionPhonePickupCount = Number(stats.phone_pickups || 0);
   sessionPhoneUsageSeconds = Number(stats.phone_use_s || 0);
+  sessionActivitySeconds = Number(stats.activity_s || 0);
+
 
   if (phonePickupCountSpan) phonePickupCountSpan.textContent = String(sessionPhonePickupCount);
   if (phoneUsageTimeSpan) phoneUsageTimeSpan.textContent = formatPhoneUsageTime(sessionPhoneUsageSeconds);
@@ -525,14 +523,14 @@ async function loadSessionIntoMemory(sessionId) {
 
   updateFocusScoreUI();
   updateSessionUI();
-  
+
   log(`Session yüklendi: ${activeSessionName} (${sessionId})`);
   return true;
 }
 
-// =====================================================
+
 // Session Start/Stop (resume / pause)
-// =====================================================
+
 async function startSessionFlow() {
   if (sessionRunning) {
     log("Session zaten çalışıyor!");
@@ -569,6 +567,9 @@ async function startSessionFlow() {
     sessionAwayCount = 0;
     sessionPhonePickupCount = 0;
     sessionPhoneUsageSeconds = 0;
+    sessionActivitySeconds = 0;
+    lastMouseMoveTs = null;
+
 
     await set(newRef, {
       name,
@@ -583,7 +584,9 @@ async function startSessionFlow() {
         away_s: 0,
         away_count: 0,
         phone_pickups: 0,
-        phone_use_s: 0
+        phone_use_s: 0,
+        activity_s: 0
+
       }
     });
 
@@ -595,7 +598,7 @@ async function startSessionFlow() {
     if (phonePickupCountSpan) phonePickupCountSpan.textContent = "0";
     if (phoneUsageTimeSpan) phoneUsageTimeSpan.textContent = "0:00";
     updateFocusScoreUI();
-    
+
     log(`Yeni session oluşturuldu: ${activeSessionName}`);
   }
 
@@ -647,24 +650,31 @@ async function stopSessionFlow() {
   await refreshReports();
 
 
-  log(`⏸️ Session durduruldu: ${activeSessionName} (${activeSessionId})`);
+  log(`Session durduruldu: ${activeSessionName} (${activeSessionId})`);
 }
 
-// =====================================================
+
 // Main Tick (1s)
-// =====================================================
+// her saniye süreyi artırır, odak süresini ve diğer sayaçları günceller
+
 function startMainTick() {
   if (tickIntervalId) {
-    log("⚠️ Tick zaten çalışıyor!");
+    log("Tick zaten çalışıyor!");
     return;
   }
 
-  log("⏱️ Tick başlatıldı (1s interval)");
+  log(" Tick başlatıldı (1s interval)");
 
   tickIntervalId = setInterval(() => {
     if (!sessionRunning) return;
 
     sessionTotalTime++;
+
+    // Sanal veri: son 10 sn içinde mouse hareketi varsa bu 1 saniyeyi "aktif" say
+    if (lastMouseMoveTs && (Date.now() - lastMouseMoveTs) <= ACTIVITY_WINDOW_MS) {
+      sessionActivitySeconds++;
+    }
+
 
     if (lastDistanceState === "focus") sessionFocusTime++;
     else if (lastDistanceState === "away") sessionDistractionCount++;
@@ -680,17 +690,16 @@ function startMainTick() {
     }
 
     updateFocusScoreUI();
-    persistSessionStats().catch(() => {});
+    persistSessionStats().catch(() => { });
   }, 1000);
 }
 
-// =====================================================
+
 // Sensor handlers
-// =====================================================
+
 function handleNewDistance(distance) {
   if (!isValidDistance(distance)) return;
 
-  // DÜZELTME: Oturum yoksa sadece görsel güncelle, istatistik tutma
   if (distanceSpan) distanceSpan.textContent = distance.toFixed(1);
 
   const statusInfo = getStatus(distance);
@@ -702,7 +711,7 @@ function handleNewDistance(distance) {
   }
 
   if (lastUpdate) lastUpdate.textContent = new Date().toLocaleTimeString();
-  
+
   addDistanceToChart(distance);
 
   const newState =
@@ -712,7 +721,6 @@ function handleNewDistance(distance) {
         ? "warning"
         : "away";
 
-  // DÜZELTME: State değişikliği tracking sadece session aktifse
   if (sessionRunning && newState !== lastDistanceState) {
     // away start
     if (newState === "away" && !isAway) {
@@ -757,7 +765,6 @@ function updatePhoneStatus(reedValue) {
     renderPhoneUI(true);
     addPhoneEventToChart(1);
 
-    // DÜZELTME: Sadece session aktifse kaydet
     if (sessionRunning) {
       sessionPhonePickupCount++;
       if (phonePickupCountSpan) phonePickupCountSpan.textContent = String(sessionPhonePickupCount);
@@ -771,7 +778,6 @@ function updatePhoneStatus(reedValue) {
     renderPhoneUI(false);
     addPhoneEventToChart(0);
 
-    // DÜZELTME: Sadece session aktifse kaydet
     if (sessionRunning && phonePickupStartTime) {
       const usageDuration = Math.floor((Date.now() - phonePickupStartTime) / 1000);
       phonePickupStartTime = null;
@@ -795,9 +801,8 @@ function renderPhoneUI(inHand) {
   }
 }
 
-// =====================================================
 // Data sources: Firebase + MQTT
-// =====================================================
+
 function startFirebaseListener() {
   log("Firebase dinleyici başlatılıyor...");
 
@@ -851,9 +856,8 @@ function startMqttListener() {
   client.on("close", () => log("MQTT bağlantısı kapandı."));
 }
 
-// =====================================================
 // Side menu toggle
-// =====================================================
+
 function setupSideMenu() {
   if (!sideMenu || !overlay) return;
 
@@ -884,9 +888,9 @@ function setupSideMenu() {
   log("Side menu hazır.");
 }
 
-// =====================================================
+
 // Simulation button
-// =====================================================
+// sahte veri üretir (test amaçlı)
 function setupSimulation() {
   if (!simulateBtn) return;
   simulateBtn.addEventListener("click", () => {
@@ -896,9 +900,8 @@ function setupSimulation() {
   });
 }
 
-// =====================================================
 // Session controls (buttons)
-// =====================================================
+
 function setupSessionControls() {
   if (!startSessionBtn || !stopSessionBtn) {
     log("Session butonları bulunamadı (startSessionBtn/stopSessionBtn).");
@@ -909,7 +912,7 @@ function setupSessionControls() {
   const savedId = localStorage.getItem("fs_activeSessionId");
   if (savedId) {
     loadSessionIntoMemory(savedId).catch(() => {
-      log("⚠️ Kaydedilmiş session yüklenemedi");
+      log("Kaydedilmiş session yüklenemedi");
     });
   } else {
     const savedName = localStorage.getItem("fs_activeSessionName");
@@ -920,14 +923,14 @@ function setupSessionControls() {
 
   startSessionBtn.addEventListener("click", () => {
     startSessionFlow().catch((e) => {
-      log(" Start error: " + e.message);
+      log("Start error: " + e.message);
       console.error(e);
     });
   });
 
   stopSessionBtn.addEventListener("click", () => {
     stopSessionFlow().catch((e) => {
-      log(" Stop error: " + e.message);
+      log("Stop error: " + e.message);
       console.error(e);
     });
   });
@@ -936,14 +939,14 @@ function setupSessionControls() {
   log("Session kontrolleri hazır.");
 }
 
-// =====================================================
-// Başlangıç Uyarısı - YENİ
-// =====================================================
+
+// Başlangıç Uyarısı 
+
 function showSessionWarning() {
   if (!sessionRunning) {
     log("UYARI: Oturum başlatılmadı! Lütfen menüden oturum başlatın.");
+
     
-    // EKLEME: Görsel uyarı
     if (statusBadge) {
       statusBadge.textContent = "Oturum Başlatın!";
       statusBadge.classList.remove("status-unknown", "status-focus", "status-away");
@@ -967,20 +970,39 @@ function clearSessionWarning() {
 }
 
 
-// =====================================================
+// Sanal Veri: Mouse Aktivite Takibi (UI'a basmaz, sadece timestamp tutar)
+
+function setupMouseActivityTracker() {
+  window.addEventListener(
+    "mousemove",
+    () => {
+      lastMouseMoveTs = Date.now();
+    },
+    { passive: true }
+  );
+}
+
 // Boot
-// =====================================================
+// uygulamayı ayağa kaldırır
 function boot() {
-  log("Uygulama başlatılıyor...");
+ log("Uygulama başlatılıyor..."); 
+
+  // Başlangıç değerleri (UI default)
+  if (distanceSpan) distanceSpan.textContent = "0.0";
+  if (statusBadge) {
+    statusBadge.textContent = "Bekleniyor...";
+    statusBadge.classList.remove("status-focus", "status-warning", "status-away");
+    statusBadge.classList.add("status-unknown");
+  }
+  if (lastUpdate) lastUpdate.textContent = "-";
 
   initCharts();
   setupSideMenu();
   setupSessionControls();
   setupSimulation();
-
+  setupMouseActivityTracker();
   startFirebaseListener();
   startMqttListener();
-
   refreshReports();
 
   log("Uygulama başlatıldı.");
